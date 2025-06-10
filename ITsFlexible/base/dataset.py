@@ -18,8 +18,11 @@ class LoopGraphDataSet(Dataset):
                  graph_mode: str = 'loop_context',
                  typing_mode='res_type',
                  edge_encoding=['covalent', 'rbf'],
+                 residues_to_encode=['CA'],
                  aa_map_mode='extended',
                  cache_frames: bool = False,
+                 force_recalc: bool = False,
+                 length_scale=None,
                  predict=False,
                  **kwargs,
                  ):
@@ -34,7 +37,10 @@ class LoopGraphDataSet(Dataset):
         self.graph_mode = graph_mode
         self.cache = {}
         self.cache_frames = cache_frames
+        self.force_recalc = force_recalc
         self.edge_encoding = edge_encoding
+        self.residues_to_encode = residues_to_encode
+        self.length_scale = length_scale
         self.graph_generation_function_dict = {  # options for graph generation
             'loop_context': self._get_loop_context_graph,
             'loop': self._get_loop_graph,
@@ -57,6 +63,9 @@ class LoopGraphDataSet(Dataset):
             loop_chain (str): Chain of loop
             loop_resi (list): Residue numbers of loop
         """
+        # select residues to include in graph
+        prot_df = prot_df[prot_df.atom_name.isin(self.residues_to_encode)]
+
         # obtain coordinates of the loop and its context
         loop_nodes = prot_df.loc[
             (prot_df["chain_id"] == loop_chain) &
@@ -114,8 +123,12 @@ class LoopGraphDataSet(Dataset):
             context_nodes=context_nodes,
             context_coords=context_coords,
             encodings=self.edge_encoding)
+        
+        # add loop length, number of residues counted by CA
+        loop_length = loop_nodes.atom_name.value_counts()['CA']
+        loop_length = (loop_length - self.length_scale['mean']) / self.length_scale['std']
 
-        return feats, edge_indices, edge_attr_full
+        return feats, edge_indices, edge_attr_full, loop_length
 
     def _get_loop_graph(self, prot_df: pd.DataFrame, loop_chain: str,
                         loop_resi: list):
@@ -126,6 +139,9 @@ class LoopGraphDataSet(Dataset):
             loop_chain (str): Chain of loop
             loop_resi (list): Residue numbers of loop
         """
+        # select residues to include in graph
+        prot_df = prot_df[prot_df.atom_name.isin(self.residues_to_encode)]
+
         # obtain coordinates of the cdr and framework
         loop_nodes = prot_df.loc[
             (prot_df["chain_id"] == loop_chain) &
@@ -149,31 +165,46 @@ class LoopGraphDataSet(Dataset):
             loop_nodes, loop_coords, encodings=self.edge_encoding
         )
 
-        return feats, edge_indices, edge_attr_full
+        # add loop length, number of residues counted by CA
+        loop_length = loop_nodes.atom_name.value_counts()['CA']
+        loop_length = (loop_length - self.length_scale['mean']) / self.length_scale['std']
+
+        return feats, edge_indices, edge_attr_full, loop_length
 
     def _get_node_features(self, df: pd.DataFrame):
         mode = self.typing_mode
 
-        if mode == 'lmg':
-            types = df['lmg_types']
-            types = types.apply(lambda x: self.type_map[x])
-            types = np.array(types)
-            types = utils.get_one_hot(
-                types, nb_classes=max(self.type_map.values()) + 1
+        types = []
+        if 'lmg' in mode:
+            type = df['lmg_types']
+            type = type.apply(lambda x: self.type_map[x])
+            type = np.array(type)
+            type = utils.get_one_hot(
+                type, nb_classes=max(self.type_map.values()) + 1
             )
-            return types
-        elif mode == 'res_type':
-            types = df['residue_name']
-            types = types.apply(
+            types.append(type)
+        if 'res_type' in mode:
+            type = df['residue_name']
+            type = type.apply(
                 lambda x: self.aa_map[x] if x in self.aa_map.keys() else 20)
-            types = types.astype(np.int64)
-            types = np.array(types)
-            types = utils.get_one_hot(
-                types, nb_classes=max(self.aa_map.values()) + 1
+            type = type.astype(np.int64)
+            type = np.array(type)
+            type = utils.get_one_hot(
+                type, nb_classes=max(self.aa_map.values()) + 1
             )
-            return types
-        else:
-            raise NotImplementedError(mode)
+            types.append(type)
+        if 'atom_type' in mode:
+            type = df['atom_name']
+            type = type.apply(
+                lambda x: utils.atom_map[x])
+            type = type.astype(np.int64)
+            type = np.array(type)
+            type = utils.get_one_hot(
+                type, nb_classes=max(utils.atom_map.values()) + 1
+            )
+            types.append(type)
+
+        return np.concatenate(types, axis=1)
 
     def _edge_attr_intra_inter(self, intra_dst_loop, intra_dst_context,
                                inter_dst_context):
@@ -350,11 +381,12 @@ class LoopGraphDataSet(Dataset):
         """
         graph_dict = {}
         graph_func = self.graph_generation_function_dict[self.graph_mode]
-        nodes, edge_ind, edge_attr = graph_func(prot_df, loop_chain, loop_resi)
+        nodes, edge_ind, edge_attr, loop_length = graph_func(prot_df, loop_chain, loop_resi)
 
         graph_dict['nodes'] = nodes
         graph_dict['edge_ind'] = edge_ind
         graph_dict['edge_attr'] = edge_attr
+        graph_dict['loop_length'] = loop_length
 
         return graph_dict
 
@@ -382,7 +414,8 @@ class LoopGraphDataSet(Dataset):
                 edge_index=edge_index,
                 edge_attr=edge_attr,
                 pos=th.from_numpy(graph_dict['nodes'][:, :3]),
-                pdb_file=str(protloop_def['pdb'])
+                pdb_file=str(protloop_def['pdb']),
+                length=graph_dict['loop_length']
             )
 
         else:
@@ -392,7 +425,8 @@ class LoopGraphDataSet(Dataset):
                 edge_attr=edge_attr,
                 pos=th.from_numpy(graph_dict['nodes'][:, :3]),
                 y=th.tensor(label),
-                pdb_file=str(protloop_def['pdb'])
+                pdb_file=str(protloop_def['pdb']),
+                length=graph_dict['loop_length']
             )
 
         return graph
@@ -431,7 +465,7 @@ class LoopGraphDataSet(Dataset):
             else:
                 self.labels = labels
 
-    def __getitem__(self, idx: int, force_recalc: bool = False):
+    def __getitem__(self, idx: int):
         """ Generate graph for complex in dataset
 
         Args:
@@ -448,17 +482,17 @@ class LoopGraphDataSet(Dataset):
         # check if typed file in cache
         if (self.cache_frames and
                 str(typed_pdb) in self.cache and not
-                force_recalc):
+                self.force_recalc):
             pdb_df = self.cache[str(typed_pdb)].copy()
 
         # check if typed file exists
-        elif typed_pdb.exists() and not force_recalc:
+        elif typed_pdb.exists() and not self.force_recalc:
             pdb_df = pd.read_parquet(typed_pdb)
 
         # if not create and save typed files
         else:
             pdb_df = utils.parse_pdb_to_parquet(
-                protloop_def['pdb'], typed_pdb, lmg_typed=False, ca=True
+                protloop_def['pdb'], typed_pdb, lmg_typed=False, ca=False
             )
 
         if self.cache_frames:

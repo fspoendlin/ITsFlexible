@@ -1,19 +1,20 @@
-save_dir: ../data/training/
-name: 'initial'
-log: False
+save_dir: /data/localhost/not-backed-up/nvme00/spoendli/Graphlexibility/data/EGNN_training_outputs/
+name: '0'
+log: True
 restore: False
 test: True
+test_CDR: True
 
 logger_params: # logging with wandb
-  entity: username
-  group:  group_name 
+  entity: f-spoendlin
+  group:  length_encoding 
   log_interval: 10
   print_interval: 50
-  project: project_name
+  project: graphlexibility_align_loops
 
 model: flexEGNN
 model_params:
-  num_node_features: 22
+  num_node_features: 27 # 1 + 21 + 5
   lr: 2.e-4
   weight_decay: 1.e-6
   dropout: 0.2
@@ -30,11 +31,12 @@ model_params:
   scheduler: CosineAnnealing
   norm_nodes: None
   reload_best_model: False
+  encode_length: True
 
 trainer_params:
   accumulate_grad_batches: 1
-  max_epochs: 200
-  accelerator: 'auto'
+  max_epochs: 500
+  # accelerator: 'auto'
   num_nodes: 1
   gradient_clip_val: 10
 
@@ -45,16 +47,29 @@ loader_params:
 
 dataset_params:
   cache_frames: False
+  force_recalc: True                    # recalculate parquet files
   graph_mode: loop_context
   interaction_dist: 10
   context_inclusion_dist: 10
-  typing_mode: res_type
+  typing_mode: ['res_type', 'atom_type']
   edge_encoding: ['covalent', 'rbf']
+  residues_to_encode: ['CA'] #['N', 'CA', 'C', 'O']
   aa_map_mode: 'extended'
+  length_scale:
+    mean: 6.7
+    std: 3.9
   input_files:
     train:
-      - ../data/train_align_loop.csv
+      - ../data/correct_paths/train_align_loop_03_local.csv
     val:
-      - ../data/val_align_loop.csv
+      - ../data/correct_paths/val_align_loop_03_local.csv
     test:
-      - ../data/test_align_loop.csv
+      - ../data/correct_paths/test_align_loop_03_local.csv
+    test_CDRH3:
+      - ../data/correct_paths/CDRH3_test_align_loop.csv
+    test_CDRL3:
+      - ../data/correct_paths/CDRL3_test_align_loop.csv
+    test_CDRB3:
+      - ../data/correct_paths/CDRB3_test_align_loop.csv
+    test_CDRA3:
+      - ../data/correct_paths/CDRA3_test_align_loop.csv

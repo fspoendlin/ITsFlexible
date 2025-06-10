@@ -48,7 +48,9 @@ class flexEGNN(pl.LightningModule):
         pooling: str = 'max',
         pool_first: bool = True,  # pool before or after last linear layer
         reload_best_model: bool = False,
+        encode_length: bool = False,
         save_dir: str = None,
+        test_mode: str = 'test',
         **kwargs,
     ):
         super(flexEGNN, self).__init__()
@@ -60,6 +62,8 @@ class flexEGNN(pl.LightningModule):
         self.update_coords = update_coords
         self.reload_best_model = reload_best_model
         self.save_dir = save_dir
+        self.encode_length = encode_length
+        self.test_mode = test_mode
 
         try:
             self.masking_bool = self.dataset_config['masking']
@@ -79,18 +83,26 @@ class flexEGNN(pl.LightningModule):
         else:
             raise NotImplementedError('Pooling function not implemented')
 
+        num_node_features = 0
         if dataset_config['graph_mode'] == 'loop_context':
-            num_node_features = 22
-        else:
-            num_node_features = 21
+            num_node_features += 1
+        if 'res_type' in dataset_config['typing_mode']:
+            num_node_features += 21
+        if 'atom_type' in dataset_config['typing_mode']:
+            num_node_features += 5
 
         self.embedding_in = Linear(num_node_features, embedding_in_nf)
         self.embedding_out = Linear(embedding_in_nf, embedding_out_nf)
 
-        if pool_first:
-            self.post_pool_linear = Linear(embedding_out_nf, num_classes)
+        if self.encode_length:
+            out_layers_dim = embedding_out_nf + 1  # +1 for length
         else:
-            self.pre_pool_linear = Linear(embedding_out_nf, num_classes)
+            out_layers_dim = embedding_out_nf
+    
+        if pool_first:
+            self.post_pool_linear = Linear(out_layers_dim, num_classes)
+        else:
+            self.pre_pool_linear = Linear(out_layers_dim, num_classes)
         self.dropout = dropout
 
         egnn_layers = []
@@ -141,6 +153,8 @@ class flexEGNN(pl.LightningModule):
         edge_ind = graph.edge_index
         coords = graph.pos.float()  # coords
         edge_attr = graph.edge_attr.float()
+        length = graph.length.float()
+        ptr = graph.ptr
 
         nodes = self.embedding_in(nodes)
 
@@ -171,8 +185,14 @@ class flexEGNN(pl.LightningModule):
 
         if self.pool_first:
             graph_vector = self.pooling_fn(nodes, graph.batch)
-            out = self.post_pool_linear(graph_vector)
+            if self.encode_length:
+                graph_vector = torch.cat((graph_vector, length.view(-1,1)), dim=1)
+            out = self.post_pool_linear(graph_vector)            
         else:
+            if self.encode_length:
+                repeats = ptr[1:] - ptr[:-1]
+                length = torch.repeat_interleave(length, repeats)
+                nodes = torch.cat([nodes, length.view(-1,1)], dim=1)
             nodes = self.pre_pool_linear(nodes)
             out = self.pooling_fn(nodes, graph.batch)
 
@@ -296,9 +316,10 @@ class flexEGNN(pl.LightningModule):
         return {'loss': loss, 'pred': pred, 'y': y}
 
     def on_test_epoch_end(self):
+        log_suffix = self.test_mode
         roc, pr_auc = self.epoch_metrics(self.preds_test, self.targets_test)
-        self.log('roc_auc/test', roc, on_step=False, on_epoch=True)
-        self.log('pr_auc/test', pr_auc, on_step=False, on_epoch=True)
+        self.log(f'roc_auc/{log_suffix}', roc, on_step=False, on_epoch=True)
+        self.log(f'pr_auc/{log_suffix}', pr_auc, on_step=False, on_epoch=True)
 
         self.preds_test = []
         self.targets_test = []
@@ -388,8 +409,11 @@ class flexEGNN(pl.LightningModule):
             graph_mode=self.dataset_config['graph_mode'],
             typing_mode=self.dataset_config['typing_mode'],
             edge_encoding=self.dataset_config['edge_encoding'],
+            residues_to_encode=self.dataset_config['residues_to_encode'],
             aa_map_mode=self.dataset_config['aa_map_mode'],
             cache_frames=self.dataset_config['cache_frames'],
+            force_recalc=self.dataset_config['force_recalc'],
+            length_scale=self.dataset_config['length_scale'],
         )
 
         for f in self.dataset_config['input_files']['test']:
@@ -410,8 +434,11 @@ class flexEGNN(pl.LightningModule):
             graph_mode=self.dataset_config['graph_mode'],
             typing_mode=self.dataset_config['typing_mode'],
             edge_encoding=self.dataset_config['edge_encoding'],
+            residues_to_encode=self.dataset_config['residues_to_encode'],
             aa_map_mode=self.dataset_config['aa_map_mode'],
             cache_frames=self.dataset_config['cache_frames'],
+            force_recalc=self.dataset_config['force_recalc'],
+            length_scale=self.dataset_config['length_scale'],
         )
 
         for f in self.dataset_config['input_files']['train']:
@@ -441,8 +468,11 @@ class flexEGNN(pl.LightningModule):
             graph_mode=self.dataset_config['graph_mode'],
             typing_mode=self.dataset_config['typing_mode'],
             edge_encoding=self.dataset_config['edge_encoding'],
+            residues_to_encode=self.dataset_config['residues_to_encode'],
             aa_map_mode=self.dataset_config['aa_map_mode'],
             cache_frames=self.dataset_config['cache_frames'],
+            force_recalc=self.dataset_config['force_recalc'],
+            length_scale=self.dataset_config['length_scale'],
         )
 
         for f in self.dataset_config['input_files']['val']:

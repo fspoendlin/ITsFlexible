@@ -60,6 +60,13 @@ extended_aa_map = {'ALA': 0,
                    'XXX': 20,
                    }
 
+atom_map = {
+            'N': 0,
+            'CA': 1,
+            'C': 2,
+            'O': 3,
+            'CB': 4,
+}
 
 def get_one_hot(targets, nb_classes):
     res = np.eye(nb_classes)[np.array(targets).reshape(-1)]
