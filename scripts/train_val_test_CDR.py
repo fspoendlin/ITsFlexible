@@ -113,6 +113,8 @@ if __name__ == "__main__":
         config = yaml.safe_load(file_handle)
     config = defaultdict(lambda: None, config)
     config['save_dir'] = (config['save_dir'] + '/' +
+                          config['logger_params']['project'] + '/' +
+                          config['logger_params']['group'] + '/' +
                           config['name'] + '/')
 
     Path(config['save_dir']).mkdir(exist_ok=True, parents=True)

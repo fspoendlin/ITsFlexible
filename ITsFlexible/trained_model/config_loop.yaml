@@ -1,5 +1,5 @@
 save_dir: /data/localhost/not-backed-up/nvme00/spoendli/Graphlexibility/data/EGNN_training_outputs/
-name: '0'
+name: '1'
 log: True
 restore: False
 test: True
@@ -7,14 +7,14 @@ test_CDR: True
 
 logger_params: # logging with wandb
   entity: f-spoendlin
-  group:  length_encoding 
+  group:  backbone_encoding
   log_interval: 10
   print_interval: 50
   project: graphlexibility_align_loops
 
 model: flexEGNN
 model_params:
-  num_node_features: 27 # 1 + 21 + 5
+  num_node_features: 27 #22 #27 # 1 + 21 + 5
   lr: 2.e-4
   weight_decay: 1.e-6
   dropout: 0.2
@@ -31,7 +31,7 @@ model_params:
   scheduler: CosineAnnealing
   norm_nodes: None
   reload_best_model: False
-  encode_length: True
+  encode_length: False # True
 
 trainer_params:
   accumulate_grad_batches: 1
@@ -47,21 +47,23 @@ loader_params:
 
 dataset_params:
   cache_frames: False
-  force_recalc: True                    # recalculate parquet files
+  force_recalc: False                # recalculate parquet files
   graph_mode: loop_context
   interaction_dist: 10
   context_inclusion_dist: 10
-  typing_mode: ['res_type', 'atom_type']
+  typing_mode: ['res_type', 'atom_type'] #['res_type', 'atom_type'], ['res_type']
   edge_encoding: ['covalent', 'rbf']
-  residues_to_encode: ['CA'] #['N', 'CA', 'C', 'O']
+  residues_to_encode: ['N', 'CA', 'C', 'O'] #['CA']
   aa_map_mode: 'extended'
   length_scale:
     mean: 6.7
     std: 3.9
   input_files:
     train:
+      # - ../data/correct_paths/train_align_loop_subset_03_local.csv
       - ../data/correct_paths/train_align_loop_03_local.csv
     val:
+      # - ../data/correct_paths/val_align_loop_subset_03_local.csv
       - ../data/correct_paths/val_align_loop_03_local.csv
     test:
       - ../data/correct_paths/test_align_loop_03_local.csv
