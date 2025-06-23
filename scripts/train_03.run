@@ -43,4 +43,5 @@ conda deactivate
 echo "start training"
 conda activate ITsFlexible_env
 cd /data/localhost/not-backed-up/nvme00/spoendli/ITsFlexible/scripts
-python train_val_test_CDR.py --accelerator gpu
+# python train_val_test_CDR.py --accelerator gpu
+python train_val_test_CDR_n.py --accelerator gpu --n 10 --predictor loop
