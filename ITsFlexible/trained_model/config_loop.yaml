@@ -6,11 +6,11 @@ test: True
 test_CDR: True
 
 logger_params: # logging with wandb
-  entity: f-spoendlin
-  group:  cutoff_2A_new
+  entity: username
+  group:  group_name
   log_interval: 10
   print_interval: 50
-  project: graphlexibility_align_loops
+  project: project_name
 
 model: flexEGNN
 model_params:
@@ -31,7 +31,7 @@ model_params:
   scheduler: CosineAnnealing
   norm_nodes: None
   reload_best_model: False
-  encode_length: False # True
+  encode_length: False
 
 trainer_params:
   accumulate_grad_batches: 1
@@ -53,23 +53,23 @@ dataset_params:
   context_inclusion_dist: 10
   typing_mode: ['res_type'] #['res_type', 'atom_type'], ['res_type']
   edge_encoding: ['covalent', 'rbf']
-  residues_to_encode: ['CA'] #['N', 'CA', 'C', 'O'] #['CA']
+  residues_to_encode: ['CA'] #['N', 'CA', 'C', 'O']
   aa_map_mode: 'extended'
   length_scale:
     mean: 6.7
     std: 3.9
   input_files:
     train:
-      - /vols/opig/users/spoendli/data/pdb_loop_datasets/train_no_overlap_mAbs_TCRs_v2_cutoff_2_EGNN_5_strucs_per_seq.csv
+      - ../data/train_align_loops.csv
     val:
-      - /vols/opig/users/spoendli/data/pdb_loop_datasets/val_no_overlap_mAbs_TCRs_v2_cutoff_2_EGNN_5_strucs_per_seq.csv
+      - ../data/val_align_loops.csv
     test:
-      - /vols/opig/users/spoendli/data/pdb_loop_datasets/test_cutoff_2_EGNN.csv
+      - ../data/test_align_loops.csv
     test_CDRH3:
-      - /vols/opig/users/spoendli/data/CDRH3_datasets/5_pdbs/CDRH3_Fv_all_EGNN_dssp_both_chains_cutoff_2.csv
+      - ../data/CDRH3_test_align_loop.csv
     test_CDRL3:
-      - /vols/opig/users/spoendli/data/CDRH3_datasets/5_pdbs/CDRL3_Fv_all_EGNN_dssp_both_chains_cutoff_2.csv
+      - ../data/CDRL3_test_align_loop.csv
     test_CDRB3:
-      - /vols/opig/users/spoendli/data/CDRH3_datasets/5_pdbs/CDRB3_Fv_all_EGNN_dssp_both_chains_cutoff_2.csv
+      - ../data/CDRB3_test_align_loop.csv
     test_CDRA3:
-      - /vols/opig/users/spoendli/data/CDRH3_datasets/5_pdbs/CDRA3_Fv_all_EGNN_dssp_both_chains_cutoff_2.csv
+      - ../data/CDRA3_test_align_loop.csv

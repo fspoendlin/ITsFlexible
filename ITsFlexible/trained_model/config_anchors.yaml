@@ -1,8 +1,9 @@
 save_dir: ../data/training/
 name: 'initial'
-log: False
+log: True
 restore: False
 test: True
+test_CDR: True
 
 logger_params: # logging with wandb
   entity: username
@@ -30,6 +31,7 @@ model_params:
   scheduler: CosineAnnealing
   norm_nodes: None
   reload_best_model: False
+  encode_length: False
 
 trainer_params:
   accumulate_grad_batches: 1
@@ -45,12 +47,17 @@ loader_params:
 
 dataset_params:
   cache_frames: False
+  force_recalc: False
   graph_mode: loop_context
   interaction_dist: 20
   context_inclusion_dist: 30
   typing_mode: res_type
   edge_encoding: ['covalent', 'rbf']
+  residues_to_encode: ['CA']
   aa_map_mode: 'extended'
+  length_scale:
+    mean: 6.7
+    std: 3.9
   input_files:
     train:
       - ../data/train_align_anchors.csv
@@ -58,3 +65,11 @@ dataset_params:
       - ../data/val_align_anchors.csv
     test:
       - ../data/test_align_anchors.csv
+    test_CDRH3:
+      - ../data/CDRH3_test_align_Fv.csv
+    test_CDRL3:
+      - ../data/CDRL3_test_align_Fv.csv
+    test_CDRB3:
+      - ../data/CDRB3_test_align_Fv.csv
+    test_CDRA3:
+      - ../data/CDRA3_test_align_Fv.csv
